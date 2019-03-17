@@ -242,6 +242,11 @@ jsPsych.plugins['image-slider-response'] = (function() {
 
       // save data
       var trialdata = {
+        "left stimulus": trial.stimulus_left,
+        "centre stimulus": trial.stimulus_centre,
+        "right stimulus": trial.stimulus_right,
+        "cue1": trial.cue1,
+        "cue2": trial.cue2,
         "rt": response.rt,
         "response": response.response
       };

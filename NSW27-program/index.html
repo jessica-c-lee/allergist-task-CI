@@ -23,18 +23,20 @@
   </body>
 
   <script>
+    //--------------------------------------------------------------------------
+    /* experiment parameters */
 
-    // groups
+    // ---------- groups ----------
     // var groups = ["prevention", "modulation", "configural"];
     // let group = "" + jsPsych.randomization.sampleWithReplacement(groups, 1) + "";
-    let group = 'NA';
+    let group = "NA";
     let sample = "MTurk"; // "MTurk" or "SONA"
     var summ_cbs = ["CD-CF", "CF-CD"];
     let summ_cb = "" + jsPsych.randomization.sampleWithReplacement(summ_cbs, 1) + "";
 
-    // experiment parameters
+    // ---------- number of blocks ----------
     var n_blocks_train = 3; // each block has 2 reps of each trial type
-    var n_blocks_test = 1;
+    var n_blocks_test = 1;  // each block has 2 reps of each trial type
 
     // timing
     var instr_ITI = 1000;
@@ -62,7 +64,7 @@
       '<p>' + anchor_right_cause + '<br>' + outcome_text + '</p>'
     ];
 
-    // 16 cues (A-P)
+    // images used as cues
     var image_list = [
       './img/apple.jpg',    // 0: A
       './img/bananas.jpg',  // 1: B
@@ -83,6 +85,8 @@
     ];
     images = jsPsych.randomization.repeat(image_list, 1, false);
     jsPsych.pluginAPI.preloadImages(images);
+
+    // get clean cue names
     var cue_A = images[0].substr(6).slice(0,-4);
     var cue_B = images[1].substr(6).slice(0,-4);
     var cue_C = images[2].substr(6).slice(0,-4);
@@ -93,10 +97,15 @@
     var cue_H = images[7].substr(6).slice(0,-4);
     var cue_I = images[8].substr(6).slice(0,-4);
 
+    // images used as outcomes in training
     var outcomes = [
       './img/allergic_reaction.jpg',
       './img/no_reaction.jpg'
     ];
+    jsPsych.pluginAPI.preloadImages(outcomes);
+
+    //--------------------------------------------------------------------------
+    /* functions */
 
     // function that checks for adjacent duplicates based on trial code
     function CheckDupes(x) {
@@ -117,7 +126,7 @@
       }
     }
 
-    // function to calculate mean of a 2-item array with numbers as characters
+    // function to calculate mean of a 2-item character array
     function CalcMeanRating(arr) {
       var rate1 = parseInt(arr[0]);
       var rate2 = parseInt(arr[1]);
@@ -126,7 +135,7 @@
     }
 
     //--------------------------------------------------------------------------
-  	/* initialise timeline*/
+  	/* initialise timeline */
 
   	var timeline = [];
   	var introloop = [];
@@ -142,6 +151,7 @@
     	  	turkcode: turkcode,
     	  	group: group,
           sample: sample,
+          summ_cb: summ_cb,
           cue_A: cue_A,
           cue_B: cue_B,
           cue_C: cue_C,
@@ -166,10 +176,9 @@
     	  });
       }
 
-    /* save and finish */
+    // save and finish
     function endExperiment(dataset,callback) {
-      $.post('submit',{"content": dataset}); // save data
-      // jsPsych.data.displayData()
+      $.post('submit',{"content": dataset});
       setTimeout(callback,1000)
     }
 
@@ -177,19 +186,19 @@
   	/* instructions text */
 
     if (group === 'prevention') {
-      var ins_insert = '<p>The doctor is interested in finding out which particular foods ' +
+      var group_insert = '<p>The doctor is interested in finding out which particular foods ' +
       '<b><i>cause</i></b> allergic reactions in Mr X and also whether there are any ' +
       'particular foods that <b><i>prevent</i></b> allergic reactions in Mr X.</p>';
     } else if (group === 'modulation') {
-      var ins_insert = '<p>The doctor is interested in finding out which particular foods ' +
+      var group_insert = '<p>The doctor is interested in finding out which particular foods ' +
       '<b><i>cause</i></b> allergic reactions in Mr X and also whether there are any ' +
       'particular foods that <b><i>block</i></b> those foods from causing an allergic ' +
       'reaction in Mr X.</p>';
     } else if (group === 'configural') {
-      var ins_insert = '<p>The doctor is interested in finding out which <b><i>foods ' +
+      var group_insert = '<p>The doctor is interested in finding out which <b><i>foods ' +
       'or combinations of foods</i></b> cause allergic reactions in Mr X.</p>';
     } else {
-      var ins_insert = '';
+      var group_insert = '';
     }
 
     if (sample === "MTurk") {
@@ -231,7 +240,7 @@
     ins.pretrain3 = [
       '<div style="text-align:left; border:0px solid; padding:10px;' +
       '                          width:800px; float:none; font-size:100%">' +
-      ins_insert +
+      group_insert +
       '<p> Your task is to play the role of the allergy doctor and learn to predict ' +
       'Mr X&#39s allergic reactions.</p>' +
       '<p>Please note that ONLY the presented information can help you. ' +
@@ -293,86 +302,52 @@
     ];
 
     //--------------------------------------------------------------------------
-    /* function that creates text to display in summation test */
+    /* function that creates summary text of participants' predictions for summation compounds */
 
     var test_CB = [-999, -999];
     var test_CD = [-999, -999];
     var test_CF = [-999, -999];
-    var insert_CD = '';
-    var insert_CF = '';
-    var insert_join = '';
-    var summation_text_CD = '';
-    var summation_text_CF = '';
     var sim_threshold = 5; // difference threshold for classifying ratings as similar
 
-    // CB vs. CD
-    var CreateSummText_CD = function(test_CB, test_CD) {
+    var CreateSummText = function(test_compound, control_compound, excitor, inhibitor, control) {
 
-        var diff_CD = CalcMeanRating(test_CB) - CalcMeanRating(test_CD);
+        var diff = CalcMeanRating(test_compound) - CalcMeanRating(control_compound);
 
-        if (diff_CD > sim_threshold) {
-          insert_CD = '<b>HIGHER</b>';
-          insert_join = ' than for ';
-        } else if (diff_CD < -sim_threshold) {
-          insert_CD = '<b>LOWER</b>';
-          insert_join = ' than for ';
+        if (diff > sim_threshold) {
+          relation = '<b>HIGHER</b>';
+          join = ' than for ';
+        } else if (diff < -sim_threshold) {
+          relation = '<b>LOWER</b>';
+          join = ' than for ';
         } else {
-          insert_CD = '<b>SIMILAR</b>';
-          insert_join = ' and ';
+          relation = '<b>SIMILAR</b>';
+          join = ' and ';
         }
-        summation_text_CD = [
+        summation_text = [
           '<center><p>In the previous phase, you were asked to make predictions about whether Mr X ' +
           'would suffer an allergic reaction in response to new meals.</p>' +
-          '<p>One of those meals was:<b> ' + cue_C + ' + ' + cue_B +  '</b>.</p>' +
-          '<p>Another meal was:<b> ' + cue_C + ' + ' + cue_D +  '</b>.</p>' +
-          '<p>You rated the likelihood of an allergic reaction as ' + insert_CD +
-          ' for <b>' + cue_C + ' + ' + cue_B + '</b>' + insert_join + '<b>'+ cue_C + ' + ' +
-          cue_D + '</b>.</p>' + prompt.ques_summ + '</center>'
+          '<p>One of those meals was:<b> ' + excitor + ' + ' + inhibitor +  '</b>.</p>' +
+          '<p>Another meal was:<b> ' + excitor + ' + ' + control +  '</b>.</p>' +
+          '<p>You rated the likelihood of an allergic reaction as ' + relation +
+          ' for <b>' + excitor + ' + ' + inhibitor + '</b>' + join + '<b>'+ excitor + ' + ' + control + '</b>.</p>' + prompt.ques_summ +
+          '</center>'
         ];
-        return(summation_text_CD)
+        return(summation_text)
       }
-
-      // CB vs. CF
-      var CreateSummText_CF = function(test_CB, test_CF) {
-
-          var diff_CF = CalcMeanRating(test_CB) - CalcMeanRating(test_CF);
-
-          if (diff_CF > sim_threshold) {
-            insert_CF = '<b>HIGHER</b>';
-            insert_join = ' than for ';
-          } else if (diff_CF < -sim_threshold) {
-            insert_CF = '<b>LOWER</b>';
-            insert_join = ' than for ';
-          } else {
-            insert_CF = '<b>SIMILAR</b>';
-            insert_join = ' and ';
-          }
-
-          summation_text_CF = [
-            '<center><p>In the previous phase, you were asked to make predictions about whether Mr X ' +
-            'would suffer an allergic reaction in response to new meals</p>' +
-            '<p>One of those meals was:<b> ' + cue_C + ' + ' + cue_B +  '</b>.</p>' +
-            '<p>Another meal was:<b> ' + cue_C + ' + ' + cue_F +  '</b>.</p>' +
-            '<p>You rated the likelihood of an allergic reaction as ' + insert_CF +
-            ' for <b>' + cue_C + ' + ' + cue_B + '</b>' + insert_join + '<b>'+ cue_C + ' + ' +
-            cue_F + '</b>.</p>' + prompt.ques_summ + '</center>'
-          ];
-          return(summation_text_CF)
-        }
 
     //--------------------------------------------------------------------------
     /* prompt text */
-
-  	var prompt = {};
-
-  	prompt.train = '<center><p><font size="+2">Please rate the likelihood that Mr X ' +
-      'will show <br>an allergic reaction after eating this meal. </font></p></center>';
 
     var cover_text = '<center><p><font size="+2" color="black"> ' +
       'Mr X eats the following meal: </font></p></center>';
 
     var feedback_cover_text = '<center><p><font size="+2" color="black">' +
       'Mr X eats the following meal: </font></p></center>';
+
+  	var prompt = {};
+
+  	prompt.train = '<center><p><font size="+2">Please rate the likelihood that Mr X ' +
+      'will show <br>an allergic reaction after eating this meal. </font></p></center>';
 
     prompt.test = prompt.train;
 
@@ -396,12 +371,13 @@
     var rand_struct_ops = jsPsych.randomization.repeat(structure_ops, 1, false);
 
     //--------------------------------------------------------------------------
-    /* define the trial types for training */
-    // A+ AB- C+ DE- F- GH+
+    /* define the trial types for training
+    A+ AB- C+ DE- F- GH+ */
 
-    var train_stim = [
+    // A+
+    var train_stim_A = [
       {
-        // A+
+        // A
         trial_type: 'A',
         trial_code: '1',
         stimulus_left: ['./img/blankC.jpg'],
@@ -409,13 +385,16 @@
         stimulus_right: ['./img/blankC.jpg'],
         text_answer: outcomes[0],
         data: {
+          phase: 'train',
+          trial_stim: 'A',
+          trial_code: '1',
           cue1: 'A',
           cue2: '',
           outcome: 1
         }
       },
       {
-        // A+
+        // A
         trial_type: 'A',
         trial_code: '1',
         stimulus_left: ['./img/blankC.jpg'],
@@ -423,13 +402,20 @@
         stimulus_right: ['./img/blankC.jpg'],
         text_answer: outcomes[0],
         data: {
+          phase: 'train',
+          trial_stim: 'A',
+          trial_code: '1',
           cue1: 'A',
           cue2: '',
           outcome: 1
         }
-      },
+      }
+    ];
+
+    // AB-
+    var train_stim_AB = [
       {
-        // AB+
+        // AB
         trial_type: 'AB',
         trial_code: '2',
         stimulus_left: [images[0]],
@@ -437,13 +423,16 @@
         stimulus_right: [images[1]],
         text_answer: outcomes[1],
         data: {
+          phase: 'train',
+          trial_stim: 'AB',
+          trial_code: '2',
           cue1: 'A',
           cue2: 'B',
           outcome: 0
         }
       },
       {
-        // BA+
+        // BA
         trial_type: 'AB',
         trial_code: '2',
         stimulus_left: [images[1]],
@@ -451,13 +440,20 @@
         stimulus_right: [images[0]],
         text_answer: outcomes[1],
         data: {
+          phase: 'train',
+          trial_stim: 'AB',
+          trial_code: '2',
           cue1: 'B',
           cue2: 'A',
           outcome: 0
         }
-      },
+      }
+    ];
+
+    // C+
+    var train_stim_C = [
       {
-        // C+
+        // C
         trial_type: 'C',
         trial_code: '3',
         stimulus_left: ['./img/blankC.jpg'],
@@ -465,13 +461,16 @@
         stimulus_right: ['./img/blankC.jpg'],
         text_answer: outcomes[0],
         data: {
+          phase: 'train',
+          trial_stim: 'C',
+          trial_code: '3',
           cue1: 'C',
           cue2: '',
           outcome: 1
         }
       },
       {
-        // C+
+        // C
         trial_type: 'C',
         trial_code: '3',
         stimulus_left: ['./img/blankC.jpg'],
@@ -479,13 +478,20 @@
         stimulus_right: ['./img/blankC.jpg'],
         text_answer: outcomes[0],
         data: {
+          phase: 'train',
+          trial_stim: 'C',
+          trial_code: '3',
           cue1: 'C',
           cue2: '',
           outcome: 1
         }
-      },
+      }
+    ];
+
+    // DE-
+    var train_stim_DE = [
       {
-        // DE-
+        // DE
         trial_type: 'DE',
         trial_code: '4',
         stimulus_left: [images[3]],
@@ -493,13 +499,16 @@
         stimulus_right: [images[4]],
         text_answer: outcomes[1],
         data: {
+          phase: 'train',
+          trial_stim: 'DE',
+          trial_code: '4',
           cue1: 'D',
           cue2: 'E',
           outcome: 0
         }
       },
       {
-        // ED-
+        // ED
         trial_type: 'DE',
         trial_code: '4',
         stimulus_left: [images[4]],
@@ -507,13 +516,20 @@
         stimulus_right: [images[3]],
         text_answer: outcomes[1],
         data: {
+          phase: 'train',
+          trial_stim: 'DE',
+          trial_code: '4',
           cue1: 'E',
           cue2: 'D',
           outcome: 0
         }
-      },
+      }
+    ];
+
+    // F-
+    var train_stim_F = [
       {
-        // F-
+        // F
         trial_type: 'F',
         trial_code: '5',
         stimulus_left: ['./img/blankC.jpg'],
@@ -521,13 +537,16 @@
         stimulus_right: ['./img/blankC.jpg'],
         text_answer: outcomes[1],
         data: {
+          phase: 'train',
+          trial_stim: 'F',
+          trial_code: '5',
           cue1: 'F',
           cue2: '',
           outcome: 0
         }
       },
       {
-        // F-
+        // F
         trial_type: 'F',
         trial_code: '5',
         stimulus_left: ['./img/blankC.jpg'],
@@ -535,13 +554,20 @@
         stimulus_right: ['./img/blankC.jpg'],
         text_answer: outcomes[1],
         data: {
+          phase: 'train',
+          trial_stim: 'F',
+          trial_code: '5',
           cue1: 'F',
           cue2: '',
           outcome: 0
         }
-      },
+      }
+    ];
+
+    // GH+
+    var train_stim_GH = [
       {
-        // GH+
+        // GH
         trial_type: 'GH',
         trial_code: '6',
         stimulus_left: [images[6]],
@@ -549,13 +575,16 @@
         stimulus_right: [images[7]],
         text_answer: outcomes[0],
         data: {
+          phase: 'train',
+          trial_stim: 'GH',
+          trial_code: '6',
           cue1: 'G',
           cue2: 'H',
           outcome: 1
         }
       },
       {
-        // HG+
+        // HG
         trial_type: 'GH',
         trial_code: '6',
         stimulus_left: [images[7]],
@@ -563,6 +592,9 @@
         stimulus_right: [images[6]],
         text_answer: outcomes[0],
         data: {
+          phase: 'train',
+          trial_stim: 'GH',
+          trial_code: '6',
           cue1: 'H',
           cue2: 'G',
           outcome: 1
@@ -577,21 +609,35 @@
       var block;
       var train_stim_rand = [];
       for (block = 0; block < n_blocks_train; block++) {
-        // var rand_block = jsPsych.randomization.repeat(train_stim, 1, unpack=false);
-        var rand_block = jsPsych.randomization.shuffleNoRepeats(train_stim, function(a,b) {
+        var rand_A = jsPsych.randomization.shuffle(train_stim_A);
+        var rand_AB = jsPsych.randomization.shuffle(train_stim_AB);
+        var rand_C = jsPsych.randomization.shuffle(train_stim_C);
+        var rand_DE = jsPsych.randomization.shuffle(train_stim_DE);
+        var rand_F = jsPsych.randomization.shuffle(train_stim_F);
+        var rand_GH = jsPsych.randomization.shuffle(train_stim_GH);
+
+        var train_stim_0 = [rand_A[0], rand_AB[0], rand_C[0], rand_DE[0], rand_F[0], rand_GH[0]];
+        var train_stim_1 = [rand_A[1], rand_AB[1], rand_C[1], rand_DE[1], rand_F[1], rand_GH[1]];
+
+        var rand_block_0 = jsPsych.randomization.shuffleNoRepeats(train_stim_0, function(a,b) {
           return a.trial_code === b.trial_code
         });
-        train_stim_rand = train_stim_rand.concat(rand_block);
+        var rand_block_1 = jsPsych.randomization.shuffleNoRepeats(train_stim_1, function(a,b) {
+          return a.trial_code === b.trial_code
+        });
+
+        train_stim_rand = train_stim_rand.concat(rand_block_0).concat(rand_block_1);
       }
       dupeCount += 1;
       dupes = CheckDupes(train_stim_rand);
     }
 
     //--------------------------------------------------------------------------
-    /* define the trial types for test */
-    // training: A AB C DE D E summation: CB CD CF CI
+    /* define the trial types for test
+    training: A AB C DE D E F summation: CB CD CF CI */
 
-    var test_stim = [
+    // A
+    var test_stim_A = [
       {
         // A
         trial_type: 'A',
@@ -600,6 +646,9 @@
         stimulus_centre: [images[0]],
         stimulus_right: ['./img/blankC.jpg'],
         data: {
+          phase: 'test',
+          trial_stim: 'A',
+          trial_code: '1',
           cue1: 'A',
           cue2: ''
         }
@@ -612,10 +661,17 @@
         stimulus_centre: [images[0]],
         stimulus_right: ['./img/blankC.jpg'],
         data: {
+          phase: 'test',
+          trial_stim: 'A',
+          trial_code: '1',
           cue1: 'A',
           cue2: ''
         }
-      },
+      }
+    ];
+
+    // AB
+    var test_stim_AB = [
       {
         // AB
         trial_type: 'AB',
@@ -624,6 +680,9 @@
         stimulus_centre: ['./img/plus.jpg'],
         stimulus_right: [images[1]],
         data: {
+          phase: 'test',
+          trial_stim: 'AB',
+          trial_code: '2',
           cue1: 'A',
           cue2: 'B'
         }
@@ -636,10 +695,17 @@
         stimulus_centre: ['./img/plus.jpg'],
         stimulus_right: [images[0]],
         data: {
+          phase: 'test',
+          trial_stim: 'AB',
+          trial_code: '2',
           cue1: 'B',
           cue2: 'A'
         }
-      },
+      }
+    ];
+
+    // C
+    var test_stim_C = [
       {
         // C
         trial_type: 'C',
@@ -648,6 +714,9 @@
         stimulus_centre: [images[2]],
         stimulus_right: ['./img/blankC.jpg'],
         data: {
+          phase: 'test',
+          trial_stim: 'C',
+          trial_code: '3',
           cue1: 'C',
           cue2: ''
         }
@@ -660,10 +729,17 @@
         stimulus_centre: [images[2]],
         stimulus_right: ['./img/blankC.jpg'],
         data: {
+          phase: 'test',
+          trial_stim: 'C',
+          trial_code: '3',
           cue1: 'C',
           cue2: ''
         }
-      },
+      }
+    ];
+
+    // DE
+    var test_stim_DE = [
       {
         // DE
         trial_type: 'DE',
@@ -672,6 +748,9 @@
         stimulus_centre: ['./img/plus.jpg'],
         stimulus_right: [images[4]],
         data: {
+          phase: 'test',
+          trial_stim: 'DE',
+          trial_code: '4',
           cue1: 'D',
           cue2: 'E'
         }
@@ -684,10 +763,17 @@
         stimulus_centre: ['./img/plus.jpg'],
         stimulus_right: [images[3]],
         data: {
+          phase: 'test',
+          trial_stim: 'DE',
+          trial_code: '4',
           cue1: 'E',
           cue2: 'D'
         }
-      },
+      }
+    ];
+
+    // D
+    var test_stim_D = [
       {
         // D
         trial_type: 'D',
@@ -696,6 +782,9 @@
         stimulus_centre: [images[3]],
         stimulus_right: ['./img/blankC.jpg'],
         data: {
+          phase: 'test',
+          trial_stim: 'D',
+          trial_code: '7',
           cue1: 'D',
           cue2: ''
         }
@@ -708,10 +797,17 @@
         stimulus_centre: [images[3]],
         stimulus_right: ['./img/blankC.jpg'],
         data: {
+          phase: 'test',
+          trial_stim: 'D',
+          trial_code: '7',
           cue1: 'D',
           cue2: ''
         }
-      },
+      }
+    ];
+
+    // E
+    var test_stim_E = [
       {
         // E
         trial_type: 'E',
@@ -720,6 +816,9 @@
         stimulus_centre: [images[4]],
         stimulus_right: ['./img/blankC.jpg'],
         data: {
+          phase: 'test',
+          trial_stim: 'E',
+          trial_code: '8',
           cue1: 'E',
           cue2: ''
         }
@@ -732,10 +831,17 @@
         stimulus_centre: [images[4]],
         stimulus_right: ['./img/blankC.jpg'],
         data: {
+          phase: 'test',
+          trial_stim: 'E',
+          trial_code: '8',
           cue1: 'E',
           cue2: ''
         }
-      },
+      }
+    ];
+
+    // F
+    var test_stim_F = [
       {
         // F
         trial_type: 'F',
@@ -744,6 +850,9 @@
         stimulus_centre: [images[5]],
         stimulus_right: ['./img/blankC.jpg'],
         data: {
+          phase: 'test',
+          trial_stim: 'F',
+          trial_code: '9',
           cue1: 'F',
           cue2: ''
         }
@@ -756,10 +865,17 @@
         stimulus_centre: [images[5]],
         stimulus_right: ['./img/blankC.jpg'],
         data: {
+          phase: 'test',
+          trial_stim: 'F',
+          trial_code: '9',
           cue1: 'F',
           cue2: ''
         }
-      },
+      }
+    ];
+
+    // CB
+    var test_stim_CB = [
       {
         // CB
         trial_type: 'CB',
@@ -768,6 +884,9 @@
         stimulus_centre: ['./img/plus.jpg'],
         stimulus_right: [images[1]],
         data: {
+          phase: 'test',
+          trial_stim: 'CB',
+          trial_code: '10',
           cue1: 'C',
           cue2: 'B'
         }
@@ -780,10 +899,17 @@
         stimulus_centre: ['./img/plus.jpg'],
         stimulus_right: [images[2]],
         data: {
+          phase: 'test',
+          trial_stim: 'CB',
+          trial_code: '10',
           cue1: 'B',
           cue2: 'C'
         }
-      },
+      }
+    ];
+
+    // CD
+    var test_stim_CD = [
       {
         // CD
         trial_type: 'CD',
@@ -792,6 +918,9 @@
         stimulus_centre: ['./img/plus.jpg'],
         stimulus_right: [images[3]],
         data: {
+          phase: 'test',
+          trial_stim: 'CD',
+          trial_code: '11',
           cue1: 'C',
           cue2: 'D'
         }
@@ -804,10 +933,17 @@
         stimulus_centre: ['./img/plus.jpg'],
         stimulus_right: [images[2]],
         data: {
+          phase: 'test',
+          trial_stim: 'CD',
+          trial_code: '11',
           cue1: 'D',
           cue2: 'C'
         }
-      },
+      }
+    ];
+
+    // CF
+    var test_stim_CF = [
       {
         // CF
         trial_type: 'CF',
@@ -816,6 +952,9 @@
         stimulus_centre: ['./img/plus.jpg'],
         stimulus_right: [images[5]],
         data: {
+          phase: 'test',
+          trial_stim: 'CF',
+          trial_code: '12',
           cue1: 'C',
           cue2: 'F'
         }
@@ -828,10 +967,17 @@
         stimulus_centre: ['./img/plus.jpg'],
         stimulus_right: [images[2]],
         data: {
+          phase: 'test',
+          trial_stim: 'CF',
+          trial_code: '12',
           cue1: 'F',
           cue2: 'C'
         }
-      },
+      }
+    ];
+
+    // CI
+    var test_stim_CI = [
       {
         // CI
         trial_type: 'CI',
@@ -840,6 +986,9 @@
         stimulus_centre: ['./img/plus.jpg'],
         stimulus_right: [images[8]],
         data: {
+          phase: 'test',
+          trial_stim: 'CI',
+          trial_code: '13',
           cue1: 'C',
           cue2: 'I'
         }
@@ -852,6 +1001,9 @@
         stimulus_centre: ['./img/plus.jpg'],
         stimulus_right: [images[2]],
         data: {
+          phase: 'test',
+          trial_stim: 'CI',
+          trial_code: '13',
           cue1: 'I',
           cue2: 'C'
         }
@@ -859,14 +1011,36 @@
     ];
 
     // randomise test trials
-    var block;
-    var test_stim_rand = [];
-    for (block = 0; block < n_blocks_test; block++) {
-      // var rand_block = jsPsych.randomization.repeat(train_stim, 1, unpack=false);
-      var rand_block = jsPsych.randomization.shuffleNoRepeats(test_stim, function(a,b) {
-        return a.trial_code === b.trial_code
-      });
-      test_stim_rand = test_stim_rand.concat(rand_block);
+    var dupes_test = true;
+    while (dupes_test === true) {
+      var block_test;
+      var test_stim_rand = [];
+      for (block_test = 0; block_test < n_blocks_test; block_test++) {
+        var rand_A_test = jsPsych.randomization.shuffle(test_stim_A);
+        var rand_AB_test = jsPsych.randomization.shuffle(test_stim_AB);
+        var rand_C_test = jsPsych.randomization.shuffle(test_stim_C);
+        var rand_DE_test = jsPsych.randomization.shuffle(test_stim_DE);
+        var rand_D_test = jsPsych.randomization.shuffle(test_stim_D);
+        var rand_E_test = jsPsych.randomization.shuffle(test_stim_E);
+        var rand_F_test = jsPsych.randomization.shuffle(test_stim_F);
+        var rand_CB_test = jsPsych.randomization.shuffle(test_stim_CB);
+        var rand_CD_test = jsPsych.randomization.shuffle(test_stim_CD);
+        var rand_CF_test = jsPsych.randomization.shuffle(test_stim_CF);
+        var rand_CI_test = jsPsych.randomization.shuffle(test_stim_CI);
+
+        var test_stim_0 = [rand_A_test[0], rand_AB_test[0], rand_C_test[0],   rand_DE_test[0], rand_D_test[0], rand_E_test[0], rand_F_test[0], rand_CB_test[0], rand_CD_test[0], rand_CF_test[0], rand_CI_test[0]];
+        var test_stim_1 = [rand_A_test[1], rand_AB_test[1], rand_C_test[1],   rand_DE_test[1], rand_D_test[1], rand_E_test[1], rand_F_test[1], rand_CB_test[1], rand_CD_test[1], rand_CF_test[1], rand_CI_test[1]];
+
+        var rand_test_block_0 = jsPsych.randomization.shuffleNoRepeats(test_stim_0, function(a,b) {
+          return a.trial_code === b.trial_code
+        });
+        var rand_test_block_1 = jsPsych.randomization.shuffleNoRepeats(test_stim_1, function(a,b) {
+          return a.trial_code === b.trial_code
+        });
+
+        test_stim_rand = test_stim_rand.concat(rand_test_block_0).concat(rand_test_block_1);
+      }
+      dupes_test = CheckDupes(test_stim_rand);
     }
 
     //--------------------------------------------------------------------------
@@ -879,7 +1053,7 @@
         stimulus_centre: [images[0]],
         stimulus_right: ['./img/blankC.jpg'],
         data: {
-          trial_type: 'A'
+          trial_stim: 'A'
         }
       },
       {
@@ -888,7 +1062,7 @@
         stimulus_centre: [images[1]],
         stimulus_right: ['./img/blankC.jpg'],
         data: {
-          trial_type: 'B'
+          trial_stim: 'B'
         }
       },
       {
@@ -897,7 +1071,7 @@
         stimulus_centre: [images[2]],
         stimulus_right: ['./img/blankC.jpg'],
         data: {
-          trial_type: 'C'
+          trial_stim: 'C'
         }
       },
       {
@@ -906,7 +1080,7 @@
         stimulus_centre: [images[3]],
         stimulus_right: ['./img/blankC.jpg'],
         data: {
-          trial_type: 'D'
+          trial_stim: 'D'
         }
       },
       {
@@ -915,7 +1089,7 @@
         stimulus_centre: [images[4]],
         stimulus_right: ['./img/blankC.jpg'],
         data: {
-          trial_type: 'E'
+          trial_stim: 'E'
         }
       },
       {
@@ -924,7 +1098,7 @@
         stimulus_centre: [images[5]],
         stimulus_right: ['./img/blankC.jpg'],
         data: {
-          trial_type: 'F'
+          trial_stim: 'F'
         }
       }
     ];
@@ -959,7 +1133,11 @@
         trial_code: '1',
         stimulus_left: ['./img/blankC.jpg'],
         stimulus_centre: [images[0]],
-        stimulus_right: ['./img/blankC.jpg']
+        stimulus_right: ['./img/blankC.jpg'],
+        data: {
+          trial_stim: 'A',
+          phase: 'causationQ'
+        }
       },
       {
         // B
@@ -967,7 +1145,11 @@
         trial_code: '14',
         stimulus_left: ['./img/blankC.jpg'],
         stimulus_centre: [images[1]],
-        stimulus_right: ['./img/blankC.jpg']
+        stimulus_right: ['./img/blankC.jpg'],
+        data: {
+          trial_stim: 'B',
+          phase: 'causationQ'
+        }
       },
       {
         // C
@@ -975,7 +1157,11 @@
         trial_code: '3',
         stimulus_left: ['./img/blankC.jpg'],
         stimulus_centre: [images[2]],
-        stimulus_right: ['./img/blankC.jpg']
+        stimulus_right: ['./img/blankC.jpg'],
+        data: {
+          trial_stim: 'C',
+          phase: 'causationQ'
+        }
       },
       {
         // D
@@ -983,7 +1169,11 @@
         trial_code: '7',
         stimulus_left: ['./img/blankC.jpg'],
         stimulus_centre: [images[3]],
-        stimulus_right: ['./img/blankC.jpg']
+        stimulus_right: ['./img/blankC.jpg'],
+        data: {
+          trial_stim: 'D',
+          phase: 'causationQ'
+        }
       },
       {
         // E
@@ -991,7 +1181,11 @@
         trial_code: '8',
         stimulus_left: ['./img/blankC.jpg'],
         stimulus_centre: [images[4]],
-        stimulus_right: ['./img/blankC.jpg']
+        stimulus_right: ['./img/blankC.jpg'],
+        data: {
+          trial_stim: 'E',
+          phase: 'causationQ'
+        }
       },
       {
         // F
@@ -999,7 +1193,23 @@
         trial_code: '5',
         stimulus_left: ['./img/blankC.jpg'],
         stimulus_centre: [images[5]],
-        stimulus_right: ['./img/blankC.jpg']
+        stimulus_right: ['./img/blankC.jpg'],
+        data: {
+          trial_stim: 'F',
+          phase: 'causationQ'
+        }
+      },
+      {
+        // I
+        trial_type: 'I',
+        trial_code: '8',
+        stimulus_left: ['./img/blankC.jpg'],
+        stimulus_centre: [images[8]],
+        stimulus_right: ['./img/blankC.jpg'],
+        data: {
+          trial_stim: 'I',
+          phase: 'causationQ'
+        }
       }
     ];
     var cause_stim_rand = jsPsych.randomization.repeat(cause_stim, 1, unpack=false);
@@ -1009,8 +1219,11 @@
 
     var fc_stim = [
       {
-        stimulus: images[1],
-        data: {trial_type: 'B'}
+        stimulus: images[1], // testing B only (the inhibitor)
+        data: {
+          trial_stim: 'B',
+          phase: 'structQ'
+        }
       }
     ];
     var rand_fc_stim = jsPsych.randomization.repeat(fc_stim, 1, unpack=false);
@@ -1116,10 +1329,7 @@
       stagger_elements_duration: stagger_interval,
   		timing_feedback_duration: feedback_duration,
   		post_trial_gap: train_ITI,
-  		timeline: train_stim_rand,
-      data: {
-        phase: 'train'
-      }
+  		timeline: train_stim_rand
   	};
   	timeline.push(train_block);
 
@@ -1153,10 +1363,7 @@
       start: 50,
       step: 1,
       post_trial_gap: test_ITI,
-      timeline: test_stim_rand,
-      data: {
-        phase: 'test'
-      }
+      timeline: test_stim_rand
     };
     timeline.push(test_block);
 
@@ -1213,7 +1420,8 @@
     var ques_summ_CD = {
       type: 'multi-image-survey-text',
       on_start: function(trial) {
-        trial.prompt = CreateSummText_CD(test_CB, test_CD)
+        trial.prompt = CreateSummText(test_CB, test_CD, cue_C, cue_B, cue_D)
+        trial.data.relation = CreateSummText(test_CB, test_CD, cue_C, cue_B, cue_D)
       },
       stimulus_left: summ_stim_1[0], // summ_stim_rand_1 (if randomising locations)
       stimulus_centre: summ_stim_1[1],
@@ -1230,8 +1438,7 @@
       post_trial_gap: test_ITI,
       data: {
         phase: 'summationQ',
-        trial_type: 'CB v CD',
-        relation: insert_CD
+        trial_stim: 'CB v CD'
       }
     };
 
@@ -1239,7 +1446,8 @@
     var ques_summ_CF = {
       type: 'multi-image-survey-text',
       on_start: function(trial) {
-        trial.prompt = CreateSummText_CF(test_CB, test_CF)
+        trial.prompt = CreateSummText(test_CB, test_CF, cue_C, cue_B, cue_F)
+        trial.data.relation = CreateSummText(test_CB, test_CF, cue_C, cue_B, cue_F)
       },
       stimulus_left: summ_stim_2[0], // summ_stim_rand_1 (if randomising locations)
       stimulus_centre: summ_stim_2[1],
@@ -1256,8 +1464,7 @@
       post_trial_gap: test_ITI,
       data: {
         phase: 'summationQ',
-        trial_type: 'CB v CF',
-        relation: insert_CF
+        trial_stim: 'CB v CF'
       }
     };
 
@@ -1294,10 +1501,7 @@
       start: 50,
       step: 1,
       post_trial_gap: test_ITI,
-      timeline: cause_stim_rand,
-      data: {
-        phase: 'causationQ'
-      }
+      timeline: cause_stim_rand
     };
     timeline.push(ques_rate_cause);
 
@@ -1316,10 +1520,7 @@
       ],
       button_label: 'Continue',
       post_trial_gap: test_ITI,
-      timeline: rand_fc_stim,
-      data: {
-        phase: 'structQ'
-      }
+      timeline: rand_fc_stim
     };
     timeline.push(ques_struc_fc);
 
@@ -1337,9 +1538,7 @@
         }
       ],
       button_label: 'Continue',
-      data: {
-        phase: 'writeCheckQ'
-      }
+      data: {phase: 'writeCheckQ'}
     };
     if (sample === "MTurk") {
       timeline.push(ques_write_check);
@@ -1362,8 +1561,9 @@
     };
     timeline.push(ques_feedback);
 
-    //--------------------------------------------------------------------------------
+    //--------------------------------------------------------------------------
   	/* start by running the "welcome.js" script */
+    
   	welcome.run();
 
   </script>
