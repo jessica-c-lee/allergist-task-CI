@@ -229,7 +229,10 @@ jsPsych.plugins['image-slider-response-multi'] = (function() {
         "rt": response.rt,
         "response1": response.response1,
         "response2": response.response2,
-        "response3": response.response3
+        "response3": response.response3,
+        "rating_text_1": trial.rating_text1,
+        "rating_text_2": trial.rating_text2,
+        "rating_text_3": trial.rating_text3
       };
 
       display_element.innerHTML = '';
